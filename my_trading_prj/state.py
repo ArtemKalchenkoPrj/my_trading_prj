@@ -1,19 +1,40 @@
-from typing import List, TypedDict
-
-class NewsItem(TypedDict):
-    content: str
-    sentiment: float  # [-1, 1]
+from typing import List, TypedDict, Literal
+from langchain_core.documents import Document
 
 class IndicatorSignal(TypedDict):
+    """Indicator of the signal
+
+    Attributes:
+        name: name of the signal
+        window: the amount of days for calculation
+        value: value of the signal for last 10 hours
+    """
     name: str
-    timeframe: str
-    value: float
-    signal: str  # bullish / bearish / neutral
+    window: int
+    value: List[float]
 
 class ActionConfidence(TypedDict):
+    """Model confidence about last move of user
+
+    Attributes:
+        buy: confidence that price will fall
+        sell: confidence that price will rise
+        hold: confidence that price will be the same
+    """
     buy: float
     sell: float
     hold: float
+
+class IndicatorChoice(TypedDict):
+    """The most relevant indicator at the moment
+
+    Attributes:
+        window: the amount of days for calculation
+        name: name of the indicator type
+    """
+
+    window: int
+    name: Literal["trend","volatility"]
 
 class GraphState(TypedDict):
     """
@@ -21,19 +42,24 @@ class GraphState(TypedDict):
 
     Attributes:
         confidence: confidence in the next move
-        question: user provided question
-        generation: generation by LLM
         news: relevant news
         indicators: relevant indicators
         DBcontext: relevant DB context
         coin: coin name
-        timeframe: time before final decision, like 1h, 1d
+        timeframe: hours before final decision
+        current_balance: amount of current balance
+        last_price: price of the coin for previous 10 hours
+        next_datasource: what datasource will be used next
     """
+    window: int
     confidence: ActionConfidence
-    question: str
-    generation: str
-    news: List[NewsItem]
+    news: List[Document]
     indicators: List[IndicatorSignal]
     DBcontext: List[str]
     coin: str
-    timeframe: str
+    timeframe: int
+    current_balance: float
+    last_price: IndicatorSignal
+    next_indicator: IndicatorChoice
+    next_datasource: Literal['news','indicators']
+    question_to_DB: str

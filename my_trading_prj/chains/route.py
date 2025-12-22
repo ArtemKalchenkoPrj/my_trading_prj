@@ -1,20 +1,23 @@
 from langchain_core.prompts import ChatPromptTemplate
 from typing import Literal
+
+from langchain_core.runnables import RunnableLambda
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
+from my_trading_prj.consts import *
+
 
 class Route(BaseModel):
     """Route a user query to the most relevant datasource."""
 
     datasource: Literal["news", "indicators"] = Field(
+        ...,
         description="What the agent should do next"
     )
-    reason: str = Field(
-        description="Why this datasource was chosen"
-    )
 
-llm = ChatOllama(model="gpt-oss:20b",temperature=0)
-structured_llm_router = llm.with_structured_output(Route)
+llm = ChatOllama(model=MODEL_TYPE,temperature=0,format='json')
+structured_llm_router = llm.bind_tools([Route], tool_choice="any")
+
 
 system = """
 You are an expert trading agent.
@@ -27,27 +30,28 @@ Rules:
 Never choose randomly.
 Do NOT repeat the same datasource if it was already used in the previous step,
 unless new information is clearly required.
+
+Also provide a short reason for your decision values.
 """
 
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", system),
         ("human",
-            """
-Context:
-- Asset: {coin}
-- Timeframe: {timeframe}
+         """
+         State summary:
+         - News available: {has_news}
+         - Indicators available: {has_indicators}
 
-State summary:
-- News available: {has_news}
-- Indicators available: {has_indicators}
-
-User goal:
-{question}
-
-What should the agent do next?
-"""
-        ),
+         Goal: Predict {coin} price in {timeframe}h.
+         """
+         ),
     ]
 )
-generation_chain = prompt | structured_llm_router
+parser = RunnableLambda(lambda x: x.content_blocks[1]['args'])
+routing_chain = prompt | structured_llm_router | parser
+
+if __name__ == "__main__":
+    res = routing_chain.invoke({"coin": "BTC-USD", "timeframe": 1,'has_indicators':False,'has_news':False})
+    print(res)
+    print("")
